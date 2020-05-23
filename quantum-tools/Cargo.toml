@@ -1,0 +1,10 @@
+[package]
+name = "quantum-tools"
+version = "0.1.0"
+authors = ["Krzysztof Biedroń <arkendil@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+num = "0.2.1"
+nalgebra = "0.21.0"
+rstest = "0.6.3"
