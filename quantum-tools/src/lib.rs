@@ -22,8 +22,8 @@ impl SystemVector {
     pub fn get_vector(&self) -> &DVector<Complex64> {
         use SystemVector::*;
         match self {
-            &ProblemBasis(ref vec) => &vec,
-            &SolutionBasis(ref vec) => &vec,
+            ProblemBasis(ref vec) => &vec,
+            SolutionBasis(ref vec) => &vec,
         }
     }
 }
@@ -51,8 +51,8 @@ impl State {
     pub fn get_system_vector(&self) -> &SystemVector {
         use State::*;
         match self {
-            &Bra(ref vec) => &vec,
-            &Ket(ref vec) => &vec,
+            Bra(ref vec) => &vec,
+            Ket(ref vec) => &vec,
         }
     }
 
@@ -112,7 +112,7 @@ impl System {
         }
     }
 
-    pub fn evolve_psi(&mut self, psi: State, t: f64) -> Result<State, String> {
+    pub fn evolve_psi(&mut self, psi: &State, t: f64) -> Result<State, String> {
         let ham = &self.eigensystem().eigenvalues;
         if psi.len() != ham.len() {
             return Err(format!(
@@ -175,7 +175,7 @@ mod tests {
 
     #[rstest]
     fn evolve_psi_mismatched_lengths_fail(solution_psi_1: State, mut system2: System) {
-        let res_ket = system2.evolve_psi(solution_psi_1, 0.1);
+        let res_ket = system2.evolve_psi(&solution_psi_1, 0.1);
 
         assert_eq!(
             res_ket,
@@ -185,7 +185,7 @@ mod tests {
 
     #[rstest]
     fn evolve_solution_psi_valid_success(solution_psi_2: State, mut system2: System) {
-        let res_ket = system2.evolve_psi(solution_psi_2, 0.1).unwrap();
+        let res_ket = system2.evolve_psi(&solution_psi_2, 0.1).unwrap();
 
         let correct_ket: State = State::solution_ket_from_slice(&vec![
             Complex64::new(0.1951363713407213, 0.01957894383041598),
