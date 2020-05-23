@@ -662,6 +662,7 @@ dependencies = [
  "nalgebra",
  "num",
  "rstest",
+ "simba",
 ]
 
 [[package]]

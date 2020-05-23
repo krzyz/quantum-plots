@@ -1,8 +1,10 @@
-extern crate nalgebra as na;
+extern crate nalgebra;
 extern crate num;
+extern crate simba;
 
-use na::{DMatrix, DVector, Dynamic, SymmetricEigen};
+use nalgebra::{convert, ComplexField, DMatrix, DVector, Dynamic, SymmetricEigen};
 use num::complex::Complex64;
+use simba::scalar::SubsetOf;
 
 type Op = DMatrix<Complex64>;
 
@@ -57,6 +59,24 @@ impl State {
     pub fn get_vector(&self) -> &DVector<Complex64> {
         self.get_system_vector().get_vector()
     }
+
+    pub fn problem_ket(vec: DVector<Complex64>) -> State {
+        State::Ket(SystemVector::ProblemBasis(vec))
+    }
+
+    pub fn solution_ket(vec: DVector<Complex64>) -> State {
+        State::Ket(SystemVector::SolutionBasis(vec))
+    }
+
+    pub fn problem_ket_from_slice<N> (data: &[N]) -> State
+    where N: SubsetOf<Complex64> + ComplexField {
+        State::problem_ket(convert(DVector::from_row_slice(data).normalize()))
+    }
+
+    pub fn solution_ket_from_slice<N> (data: &[N]) -> State
+    where N: SubsetOf<Complex64> + ComplexField {
+        State::solution_ket(convert(DVector::from_row_slice(data).normalize()))
+    }
 }
 
 impl PartialEq for State {
@@ -108,7 +128,7 @@ impl System {
             State::Ket(sys_vec) => {
                 match sys_vec {
                     SystemVector::SolutionBasis(vec) => {
-                        State::Ket(SystemVector::SolutionBasis(matrix * vec))
+                        State::solution_ket(matrix * vec)
                     },
                     _ => panic!(),
                 }
@@ -145,12 +165,12 @@ mod tests {
 
     #[fixture]
     pub fn psi_1() -> State {
-        State::Ket(SystemVector::SolutionBasis(na::convert(DVector::from_row_slice(&vec![1]))))
+        State::solution_ket_from_slice(&vec![1.0])
     }
 
     #[fixture]
     pub fn psi_2() -> State {
-        State::Ket(SystemVector::SolutionBasis(na::convert(DVector::from_row_slice(&vec![0.1, 0.5]).normalize())))
+        State::solution_ket_from_slice(&vec![0.1, 0.5])
     }
 
     #[rstest]
@@ -167,10 +187,10 @@ mod tests {
     fn evolve_psi_valid_success(psi_2: State, mut system2: System) {
         let res_ket = system2.evolve_psi(psi_2, 0.1).unwrap();
 
-        let correct_ket: State = State::Ket(SystemVector::SolutionBasis(na::convert(DVector::from_row_slice(&vec![
+        let correct_ket: State = State::solution_ket_from_slice(&vec![
             Complex64::new(0.1951363713407213, 0.01957894383041598),
             Complex64::new(0.9756818567036065, -0.09789471915207991),
-        ]))));
+        ]);
 
         assert_eq!(res_ket, correct_ket);
     }
