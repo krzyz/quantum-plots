@@ -164,18 +164,18 @@ mod tests {
     }
 
     #[fixture]
-    pub fn psi_1() -> State {
+    pub fn solution_psi_1() -> State {
         State::solution_ket_from_slice(&vec![1.0])
     }
 
     #[fixture]
-    pub fn psi_2() -> State {
+    pub fn solution_psi_2() -> State {
         State::solution_ket_from_slice(&vec![0.1, 0.5])
     }
 
     #[rstest]
-    fn evolve_psi_mismatched_lengths_fail(psi_1: State, mut system2: System) {
-        let res_ket = system2.evolve_psi(psi_1, 0.1);
+    fn evolve_psi_mismatched_lengths_fail(solution_psi_1: State, mut system2: System) {
+        let res_ket = system2.evolve_psi(solution_psi_1, 0.1);
 
         assert_eq!(
             res_ket,
@@ -184,8 +184,8 @@ mod tests {
     }
 
     #[rstest]
-    fn evolve_psi_valid_success(psi_2: State, mut system2: System) {
-        let res_ket = system2.evolve_psi(psi_2, 0.1).unwrap();
+    fn evolve_solution_psi_valid_success(solution_psi_2: State, mut system2: System) {
+        let res_ket = system2.evolve_psi(solution_psi_2, 0.1).unwrap();
 
         let correct_ket: State = State::solution_ket_from_slice(&vec![
             Complex64::new(0.1951363713407213, 0.01957894383041598),
