@@ -2,19 +2,18 @@ extern crate nalgebra;
 extern crate num;
 extern crate simba;
 
-use nalgebra::{convert, ComplexField, DMatrix, RowDVector, DVector, Dynamic, SymmetricEigen};
+use nalgebra::{convert, ComplexField, DMatrix, DVector, Dynamic, RowDVector, SymmetricEigen};
 use num::complex::Complex64;
 use simba::scalar::SubsetOf;
 
 type Op = DMatrix<Complex64>;
 
-trait VectorType {
-}
+trait VectorType {}
 
 impl<N> VectorType for DVector<N> where N: ComplexField {}
 impl<N> VectorType for RowDVector<N> where N: ComplexField {}
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub enum State {
     ProblemBasis(Braket),
     SolutionBasis(Braket),
@@ -53,13 +52,17 @@ impl State {
         State::SolutionBasis(Braket::Bra(vec))
     }
 
-    pub fn problem_ket_from_slice<N> (data: &[N]) -> State
-    where N: SubsetOf<Complex64> + ComplexField {
+    pub fn problem_ket_from_slice<N>(data: &[N]) -> State
+    where
+        N: SubsetOf<Complex64> + ComplexField,
+    {
         State::solution_ket(convert(DVector::from_row_slice(data).normalize()))
     }
 
-    pub fn solution_ket_from_slice<N> (data: &[N]) -> State
-    where N: SubsetOf<Complex64> + ComplexField {
+    pub fn solution_ket_from_slice<N>(data: &[N]) -> State
+    where
+        N: SubsetOf<Complex64> + ComplexField,
+    {
         State::solution_ket(convert(DVector::from_row_slice(data).normalize()))
     }
 }
@@ -73,13 +76,13 @@ impl PartialEq for State {
                 (SolutionBasis(vec), SolutionBasis(other_vec)) => vec == other_vec,
                 (ProblemBasis(vec), ProblemBasis(other_vec)) => vec == other_vec,
                 _ => false,
-            }
-            false => false
+            },
+            false => false,
         }
     }
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub enum Braket {
     Bra(RowDVector<Complex64>),
     Ket(DVector<Complex64>),
@@ -105,14 +108,13 @@ impl PartialEq for Braket {
                 (Bra(vec), Bra(other_vec)) => vec == other_vec,
                 (Ket(vec), Ket(other_vec)) => vec == other_vec,
                 _ => false,
-            }
-            false => false
+            },
+            false => false,
         }
     }
 }
 
-pub struct System
-{
+pub struct System {
     ham: Op,
     eigensystem: Option<SymmetricEigen<Complex64, Dynamic>>,
 }
@@ -137,46 +139,69 @@ impl System {
 
     // TODO: test to_solution
     pub fn to_solution(&mut self, psi: &State) -> State {
-        use State::*;
         use Braket::*;
+        use State::*;
 
         match psi {
-            ProblemBasis(Ket(vec)) => State::solution_ket(&self.eigensystem().eigenvectors * vec),
+            ProblemBasis(Ket(vec)) => {
+                State::solution_ket(&self.eigensystem().eigenvectors.adjoint() * vec)
+            }
             SolutionBasis(Ket(_)) => (*psi).clone(),
-            ProblemBasis(Bra(vec)) => State::solution_bra(vec * &self.eigensystem().eigenvectors.adjoint()),
+            ProblemBasis(Bra(vec)) => State::solution_bra(vec * &self.eigensystem().eigenvectors),
             SolutionBasis(Bra(_)) => (*psi).clone(),
+        }
+    }
+
+    pub fn to_problem(&mut self, psi: &State) -> State {
+        use Braket::*;
+        use State::*;
+
+        match psi {
+            ProblemBasis(Ket(_)) => (*psi).clone(),
+            SolutionBasis(Ket(vec)) => State::problem_ket(&self.eigensystem().eigenvectors * vec),
+            ProblemBasis(Bra(_)) => (*psi).clone(),
+            SolutionBasis(Bra(vec)) => {
+                State::problem_bra(vec * &self.eigensystem().eigenvectors.adjoint())
+            }
         }
     }
 
     pub fn evolve_psi(&mut self, psi: &State, t: f64) -> Result<State, String> {
         println!("{:#?}", &self.eigensystem());
-        let ham = &self.eigensystem().eigenvalues;
-        if psi.len() != ham.len() {
+        if psi.len() != self.ham.nrows() {
             return Err(format!(
                 "Dimensions of ket({}) and ham({}) don't match!",
                 psi.len(),
-                ham.len()
+                self.ham.nrows()
             ));
         }
-        let diagonal: Vec<Complex64> = ham.iter().map(|x| (Complex64::i() * x * t).exp()).collect();
-        let dvec = DVector::from_row_slice(&diagonal);
-        let matrix = DMatrix::from_diagonal(&dvec);
+
         let result = match psi {
-            State::SolutionBasis(sys_vec) => {
+            State::SolutionBasis(ref sys_vec) => {
+                let ham = &self.eigensystem().eigenvalues;
+                let diagonal: Vec<Complex64> = ham
+                    .iter()
+                    .map(|x| (-Complex64::i() * x * t).exp())
+                    .collect();
+
+                let dvec = DVector::from_row_slice(&diagonal);
+                let matrix = DMatrix::from_diagonal(&dvec);
+
                 match sys_vec {
-                    Braket::Ket(vec) => {
-                        State::solution_ket(matrix * vec)
-                    },
-                    _ => unimplemented!(),
+                    Braket::Ket(ref vec) => State::solution_ket(matrix * vec),
+                    Braket::Bra(ref vec) => State::solution_bra(-vec * matrix),
                 }
-            },
-            _ => unimplemented!(),
+            }
+            State::ProblemBasis(_) => {
+                let solution_psi = &self.to_solution(psi);
+                let result_solution_psi = &self.evolve_psi(solution_psi, t).unwrap();
+                self.to_problem(result_solution_psi)
+            }
         };
 
         Ok(result)
     }
 }
- 
 
 #[cfg(test)]
 mod tests {
@@ -225,8 +250,8 @@ mod tests {
         let res_ket = system2.evolve_psi(&solution_psi_2, 0.1).unwrap();
 
         let correct_ket: State = State::solution_ket_from_slice(&vec![
-            Complex64::new(0.1951363713407213, 0.01957894383041598),
-            Complex64::new(0.9756818567036065, -0.09789471915207991),
+            Complex64::new(0.1951363713407213, -0.01957894383041598),
+            Complex64::new(0.9756818567036065, 0.09789471915207991),
         ]);
 
         assert_eq!(res_ket, correct_ket);
