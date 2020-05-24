@@ -2,75 +2,60 @@ extern crate nalgebra;
 extern crate num;
 extern crate simba;
 
-use nalgebra::{convert, ComplexField, DMatrix, DVector, Dynamic, SymmetricEigen};
+use nalgebra::{convert, ComplexField, DMatrix, RowDVector, DVector, Dynamic, SymmetricEigen};
 use num::complex::Complex64;
 use simba::scalar::SubsetOf;
 
 type Op = DMatrix<Complex64>;
 
-#[derive(Debug)]
-pub enum SystemVector {
-    ProblemBasis(DVector<Complex64>),
-    SolutionBasis(DVector<Complex64>),
+trait VectorType {
 }
 
-impl SystemVector {
+impl<N> VectorType for DVector<N> where N: ComplexField {}
+impl<N> VectorType for RowDVector<N> where N: ComplexField {}
+
+#[derive(Clone,Debug)]
+pub enum State {
+    ProblemBasis(Braket),
+    SolutionBasis(Braket),
+}
+
+impl State {
     pub fn len(&self) -> usize {
-        self.get_vector().len()
+        use State::*;
+        match self {
+            ProblemBasis(ref vec) => vec.len(),
+            SolutionBasis(ref vec) => vec.len(),
+        }
     }
 
-    pub fn get_vector(&self) -> &DVector<Complex64> {
-        use SystemVector::*;
+    pub fn get_braket(&self) -> &Braket {
+        use State::*;
         match self {
             ProblemBasis(ref vec) => &vec,
             SolutionBasis(ref vec) => &vec,
         }
     }
-}
-
-impl PartialEq for SystemVector {
-    fn eq(&self, other: &Self) -> bool {
-        match std::mem::discriminant(self) == std::mem::discriminant(other) {
-            true => self.get_vector() == other.get_vector(),
-            false => false
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum State {
-    Bra(SystemVector),
-    Ket(SystemVector),
-}
-
-impl State {
-    pub fn len(&self) -> usize {
-        return self.get_vector().len()
-    }
-
-    pub fn get_system_vector(&self) -> &SystemVector {
-        use State::*;
-        match self {
-            Bra(ref vec) => &vec,
-            Ket(ref vec) => &vec,
-        }
-    }
-
-    pub fn get_vector(&self) -> &DVector<Complex64> {
-        self.get_system_vector().get_vector()
-    }
 
     pub fn problem_ket(vec: DVector<Complex64>) -> State {
-        State::Ket(SystemVector::ProblemBasis(vec))
+        State::ProblemBasis(Braket::Ket(vec))
     }
 
     pub fn solution_ket(vec: DVector<Complex64>) -> State {
-        State::Ket(SystemVector::SolutionBasis(vec))
+        State::SolutionBasis(Braket::Ket(vec))
+    }
+
+    pub fn problem_bra(vec: RowDVector<Complex64>) -> State {
+        State::ProblemBasis(Braket::Bra(vec))
+    }
+
+    pub fn solution_bra(vec: RowDVector<Complex64>) -> State {
+        State::SolutionBasis(Braket::Bra(vec))
     }
 
     pub fn problem_ket_from_slice<N> (data: &[N]) -> State
     where N: SubsetOf<Complex64> + ComplexField {
-        State::problem_ket(convert(DVector::from_row_slice(data).normalize()))
+        State::solution_ket(convert(DVector::from_row_slice(data).normalize()))
     }
 
     pub fn solution_ket_from_slice<N> (data: &[N]) -> State
@@ -81,8 +66,46 @@ impl State {
 
 impl PartialEq for State {
     fn eq(&self, other: &Self) -> bool {
+        use State::*;
+
         match std::mem::discriminant(self) == std::mem::discriminant(other) {
-            true => self.get_vector() == other.get_vector(),
+            true => match (self, other) {
+                (SolutionBasis(vec), SolutionBasis(other_vec)) => vec == other_vec,
+                (ProblemBasis(vec), ProblemBasis(other_vec)) => vec == other_vec,
+                _ => false,
+            }
+            false => false
+        }
+    }
+}
+
+#[derive(Clone,Debug)]
+pub enum Braket {
+    Bra(RowDVector<Complex64>),
+    Ket(DVector<Complex64>),
+}
+
+impl Braket {
+    pub fn len(&self) -> usize {
+        use Braket::*;
+
+        match self {
+            Bra(ref vec) => vec.len(),
+            Ket(ref vec) => vec.len(),
+        }
+    }
+}
+
+impl PartialEq for Braket {
+    fn eq(&self, other: &Self) -> bool {
+        use Braket::*;
+
+        match std::mem::discriminant(self) == std::mem::discriminant(other) {
+            true => match (self, other) {
+                (Bra(vec), Bra(other_vec)) => vec == other_vec,
+                (Ket(vec), Ket(other_vec)) => vec == other_vec,
+                _ => false,
+            }
             false => false
         }
     }
@@ -112,7 +135,21 @@ impl System {
         }
     }
 
+    // TODO: test to_solution
+    pub fn to_solution(&mut self, psi: &State) -> State {
+        use State::*;
+        use Braket::*;
+
+        match psi {
+            ProblemBasis(Ket(vec)) => State::solution_ket(&self.eigensystem().eigenvectors * vec),
+            SolutionBasis(Ket(_)) => (*psi).clone(),
+            ProblemBasis(Bra(vec)) => State::solution_bra(vec * &self.eigensystem().eigenvectors.adjoint()),
+            SolutionBasis(Bra(_)) => (*psi).clone(),
+        }
+    }
+
     pub fn evolve_psi(&mut self, psi: &State, t: f64) -> Result<State, String> {
+        println!("{:#?}", &self.eigensystem());
         let ham = &self.eigensystem().eigenvalues;
         if psi.len() != ham.len() {
             return Err(format!(
@@ -125,15 +162,15 @@ impl System {
         let dvec = DVector::from_row_slice(&diagonal);
         let matrix = DMatrix::from_diagonal(&dvec);
         let result = match psi {
-            State::Ket(sys_vec) => {
+            State::SolutionBasis(sys_vec) => {
                 match sys_vec {
-                    SystemVector::SolutionBasis(vec) => {
+                    Braket::Ket(vec) => {
                         State::solution_ket(matrix * vec)
                     },
-                    _ => panic!(),
+                    _ => unimplemented!(),
                 }
             },
-            _ => panic!(),
+            _ => unimplemented!(),
         };
 
         Ok(result)
