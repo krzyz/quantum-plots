@@ -37,12 +37,9 @@ impl System {
         use State::*;
 
         match psi {
-            ProblemBasis(Ket(vec)) => {
-                State::solution_ket(&self.eigensystem().eigenvectors.adjoint() * vec)
-            }
-            SolutionBasis(Ket(_)) => (*psi).clone(),
+            SolutionBasis(_) => (*psi).clone(),
+            ProblemBasis(Ket(vec)) => State::solution_ket(&self.eigensystem().eigenvectors.adjoint() * vec),
             ProblemBasis(Bra(vec)) => State::solution_bra(vec * &self.eigensystem().eigenvectors),
-            SolutionBasis(Bra(_)) => (*psi).clone(),
         }
     }
 
@@ -51,12 +48,9 @@ impl System {
         use State::*;
 
         match psi {
-            ProblemBasis(Ket(_)) => (*psi).clone(),
+            ProblemBasis(_) => (*psi).clone(),
             SolutionBasis(Ket(vec)) => State::problem_ket(&self.eigensystem().eigenvectors * vec),
-            ProblemBasis(Bra(_)) => (*psi).clone(),
-            SolutionBasis(Bra(vec)) => {
-                State::problem_bra(vec * &self.eigensystem().eigenvectors.adjoint())
-            }
+            SolutionBasis(Bra(vec)) => State::problem_bra(vec * &self.eigensystem().eigenvectors.adjoint()),
         }
     }
 
@@ -143,7 +137,7 @@ mod tests {
     fn evolve_solution_psi_valid_success(solution_psi_2: State, mut system2: System) {
         let res_ket = system2.evolve_psi(&solution_psi_2, 0.1).unwrap();
 
-        let correct_ket: State = State::solution_ket_from_slice(&vec![
+        let correct_ket = State::solution_ket_from_slice(&vec![
             Complex64::new(0.1951363713407213, -0.01957894383041598),
             Complex64::new(0.9756818567036065, 0.09789471915207991),
         ]);
