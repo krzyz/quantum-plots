@@ -4,9 +4,10 @@ extern crate num;
 use nalgebra::{ComplexField, DMatrix, DVector, Dynamic, SymmetricEigen};
 use num::complex::Complex64;
 
-use crate::*;
-use braket::*;
-use state::*;
+use crate::braket::*;
+use crate::state::*;
+use crate::basis::*;
+use crate::Op;
 
 pub struct System {
     ham: Op,
@@ -34,23 +35,21 @@ impl System {
     // TODO: test to_solution
     pub fn to_solution(&mut self, psi: &State) -> State {
         use Braket::*;
-        use State::*;
 
         match psi {
-            SolutionBasis(_) => (*psi).clone(),
-            ProblemBasis(Ket(vec)) => State::solution_ket(&self.eigensystem().eigenvectors.adjoint() * vec),
-            ProblemBasis(Bra(vec)) => State::solution_bra(vec * &self.eigensystem().eigenvectors),
+            Basis::Solution(_) => (*psi).clone(),
+            Basis::Problem(Ket(vec)) => State::solution_ket(&self.eigensystem().eigenvectors.adjoint() * vec),
+            Basis::Problem(Bra(vec)) => State::solution_bra(vec * &self.eigensystem().eigenvectors),
         }
     }
 
     pub fn to_problem(&mut self, psi: &State) -> State {
         use Braket::*;
-        use State::*;
 
         match psi {
-            ProblemBasis(_) => (*psi).clone(),
-            SolutionBasis(Ket(vec)) => State::problem_ket(&self.eigensystem().eigenvectors * vec),
-            SolutionBasis(Bra(vec)) => State::problem_bra(vec * &self.eigensystem().eigenvectors.adjoint()),
+            Basis::Problem(_) => (*psi).clone(),
+            Basis::Solution(Ket(vec)) => State::problem_ket(&self.eigensystem().eigenvectors * vec),
+            Basis::Solution(Bra(vec)) => State::problem_bra(vec * &self.eigensystem().eigenvectors.adjoint()),
         }
     }
 
@@ -64,7 +63,7 @@ impl System {
         }
 
         let result = match psi {
-            State::SolutionBasis(ref sys_vec) => {
+            Basis::Solution(ref sys_vec) => {
                 let ham = &self.eigensystem().eigenvalues;
                 let diagonal: Vec<Complex64> = ham
                     .iter()
@@ -79,7 +78,7 @@ impl System {
                     Braket::Bra(ref vec) => State::solution_bra(-vec * matrix),
                 }
             }
-            State::ProblemBasis(_) => {
+            Basis::Problem(_) => {
                 let solution_psi = &self.to_solution(psi);
                 let result_solution_psi = &self.evolve_psi(solution_psi, t).unwrap();
                 self.to_problem(result_solution_psi)
