@@ -616,7 +616,10 @@ name = "plotters-wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "nalgebra",
+ "num",
  "plotters",
+ "quantum-tools",
  "wasm-bindgen",
  "web-sys",
  "wee_alloc",

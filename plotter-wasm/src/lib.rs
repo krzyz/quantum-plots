@@ -1,6 +1,7 @@
 use wasm_bindgen::prelude::*;
 use plotters::prelude::*;
 use plotters::coord::Shift;
+use func_plot::{PlotData, Problem};
 
 mod func_plot;
 mod utils;
@@ -15,6 +16,8 @@ pub type DrawResult<T> = Result<T, Box<dyn std::error::Error>>;
 pub struct Chart {
     root: DrawingArea<CanvasBackend, Shift>,
     convert: Box<dyn Fn((i32, i32)) -> Option<(f64, f64)>>,
+    plot_data: PlotData,
+    problem: Problem,
 }
 
 #[wasm_bindgen]
@@ -27,8 +30,9 @@ pub struct Point {
 impl Chart {
     /// Draw provided power function on the canvas element using it's id.
     /// Return `Chart` struct suitable for coordinate conversion.
-    pub fn power(&mut self, time: i32) -> Result<(), JsValue> {
-        let map_coord = func_plot::draw(self, time).map_err(|err| err.to_string())?;
+    pub fn power(&mut self, time: f64) -> Result<(), JsValue> {
+        self.plot_data.add_time(&mut self.problem, time);
+        let map_coord = func_plot::draw(self).map_err(|err| err.to_string())?;
         self.convert = Box::new(move |coord| map_coord(coord).map(|(x, y)| (x.into(), y.into())));
         Ok(())
     }
@@ -37,9 +41,14 @@ impl Chart {
         utils::set_panic_hook();
         let backend = CanvasBackend::new(canvas_id).expect("cannot find canvas");
         let root = backend.into_drawing_area();
+        let problem = Problem::new();
+        let plot_data = PlotData::new(&problem);
+
         Chart {
             root,
             convert: Box::new(move |(x, y)| Some((x.into(), y.into()))),
+            plot_data,
+            problem,
         }
     }
 

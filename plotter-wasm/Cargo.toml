@@ -15,4 +15,7 @@ console_error_panic_hook = { version = "0.1.1", optional = true }
 plotters = "0.2.14"
 wasm-bindgen = "0.2.62"
 wee_alloc = "0.4.5"
-web-sys = { version = "0.3.39", features = ["HtmlCanvasElement"] }
+web-sys = { version = "0.3.39", features = ["console", "HtmlCanvasElement"] }
+quantum-tools = { path = "../quantum-tools" }
+num = "0.2.1"
+nalgebra = "0.21.0"
