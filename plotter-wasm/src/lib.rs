@@ -1,7 +1,7 @@
-use wasm_bindgen::prelude::*;
-use plotters::prelude::*;
-use plotters::coord::Shift;
 use func_plot::{PlotData, Problem};
+use plotters::coord::Shift;
+use plotters::prelude::*;
+use wasm_bindgen::prelude::*;
 
 mod func_plot;
 mod utils;
@@ -10,7 +10,6 @@ mod utils;
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 pub type DrawResult<T> = Result<T, Box<dyn std::error::Error>>;
-
 
 #[wasm_bindgen]
 pub struct Chart {
@@ -34,9 +33,9 @@ impl Chart {
         self.plot_data.add_time(&mut self.problem, time);
         let map_coord = func_plot::draw(self).map_err(|err| err.to_string())?;
         self.convert = Box::new(move |coord| map_coord(coord).map(|(x, y)| (x.into(), y.into())));
+
         Ok(())
     }
-    
     pub fn new(canvas_id: &str) -> Chart {
         utils::set_panic_hook();
         let backend = CanvasBackend::new(canvas_id).expect("cannot find canvas");
